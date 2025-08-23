@@ -1,0 +1,18 @@
+name: Keep Alive Service
+
+on:
+  schedule:
+    - cron: '0 */1 * * *' # هر 1 ساعت
+  workflow_dispatch: # امکان اجرای دستی
+
+jobs:
+  keep-alive:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Send Keep Alive Request
+      run: |
+        curl -X POST \
+          -H "Content-Type: application/json" \
+          -H "apikey: YOUR_SUPABASE_KEY" \
+          -d '{}' \
+          "https://hiuhsxwympjeugkiusbd.supabase.co/rest/v1/keepalive"
