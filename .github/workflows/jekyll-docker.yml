@@ -2,8 +2,8 @@ name: Keep Alive Service
 
 on:
   schedule:
-    - cron: '0 */1 * * *' # هر 1 ساعت
-  workflow_dispatch: # امکان اجرای دستی
+    - cron: '0 */1 * * *'  # هر ساعت در دقیقه 0
+  workflow_dispatch:  # امکان اجرای دستی
 
 jobs:
   keep-alive:
@@ -13,6 +13,7 @@ jobs:
       run: |
         curl -X POST \
           -H "Content-Type: application/json" \
-          -H "apikey: YOUR_SUPABASE_KEY" \
+          -H "Authorization: Bearer ${{ secrets.SUPABASE_KEY }}" \
+          -H "apikey: ${{ secrets.SUPABASE_KEY }}" \
           -d '{}' \
           "https://hiuhsxwympjeugkiusbd.supabase.co/rest/v1/keepalive"
