@@ -85,6 +85,7 @@
         .btn-start { background-color: #28a745; color: white; }
         .btn-stop { background-color: #dc3545; color: white; }
         .btn-test { background-color: #007bff; color: white; }
+        .btn-history { background-color: #6c757d; color: white; }
     </style>
 </head>
 <body>
@@ -114,6 +115,7 @@
             <button class="btn-start" onclick="startService()">▶️ شروع سرویس</button>
             <button class="btn-stop" onclick="stopService()">⏹️ توقف سرویس</button>
             <button class="btn-test" onclick="manualTest()">🔧 تست دستی</button>
+            <button class="btn-history" onclick="loadHistory()">📜 بارگذاری تاریخچه</button>
         </div>
 
         <div id="currentStatus" class="status info">⏳ سرویس آماده است...</div>
@@ -124,7 +126,7 @@
                 <thead>
                     <tr>
                         <th>ردیف</th>
-                        <th>زمان</th>
+                        <th>زمان درخواست</th>
                         <th>وضعیت</th>
                         <th>ID رکورد</th>
                         <th>پیام</th>
@@ -149,11 +151,35 @@
         let successCount = 0;
         let errorCount = 0;
 
+        // ذخیره وضعیت در localStorage
+        function saveStats() {
+            const stats = {
+                requestCount,
+                successCount,
+                errorCount,
+                lastUpdate: new Date().toISOString()
+            };
+            localStorage.setItem('keepAliveStats', JSON.stringify(stats));
+        }
+
+        // بارگذاری وضعیت از localStorage
+        function loadStats() {
+            const savedStats = localStorage.getItem('keepAliveStats');
+            if (savedStats) {
+                const stats = JSON.parse(savedStats);
+                requestCount = stats.requestCount || 0;
+                successCount = stats.successCount || 0;
+                errorCount = stats.errorCount || 0;
+                updateStats();
+            }
+        }
+
         function updateStats() {
             document.getElementById('totalRequests').textContent = requestCount;
             document.getElementById('successCount').textContent = successCount;
             document.getElementById('errorCount').textContent = errorCount;
             document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+            saveStats();
         }
 
         function addTableRow(result) {
@@ -237,14 +263,64 @@
             }
         }
 
+        // بارگذاری تاریخچه از Supabase (فقط IDها)
+        async function loadHistory() {
+            try {
+                updateStatus('📂 در حال بارگذاری تاریخچه...', 'info');
+                
+                // فقط ستون id را انتخاب می‌کنیم
+                const { data, error } = await supabase
+                    .from(tableName)
+                    .select('id') // فقط id
+                    .order('id', { ascending: false }) // بر اساس id مرتب می‌کنیم
+                    .limit(50);
+
+                if (error) {
+                    updateStatus(`❌ خطا در بارگذاری تاریخچه: ${error.message}`, 'error');
+                    return;
+                }
+
+                const tbody = document.getElementById('tableBody');
+                tbody.innerHTML = '';
+
+                if (data.length === 0) {
+                    const row = document.createElement('tr');
+                    row.innerHTML = '<td colspan="6" style="text-align: center;">هیچ رکوردی یافت نشد</td>';
+                    tbody.appendChild(row);
+                    updateStatus('ℹ️ هیچ رکوردی در دیتابیس وجود ندارد', 'info');
+                    return;
+                }
+
+                data.forEach((record, index) => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${data.length - index}</td>
+                        <td>${new Date().toLocaleString('fa-IR')}</td>
+                        <td style="color: green">✅ موفق</td>
+                        <td>${record.id}</td>
+                        <td>رکورد ذخیره شده</td>
+                        <td>-</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+
+                updateStatus(`✅ تاریخچه بارگذاری شد (${data.length} رکورد)`, 'success');
+
+            } catch (error) {
+                updateStatus(`❌ خطا در بارگذاری تاریخچه: ${error.message}`, 'error');
+            }
+        }
+
         function startService() {
             if (intervalId) {
                 updateStatus('⚠️ سرویس در حال اجراست', 'info');
                 return;
             }
-            intervalId = setInterval(tester, 3600000); // هر ۱ ساعت
-            updateStatus('🚀 سرویس فعال شد - هر 10 دقیقه یکبار', 'success');
-            tester(); // اجرای اولیه
+            intervalId = setInterval(tester, 3600000); // هر 1 ساعت (3600000 میلی‌ثانیه)
+            updateStatus('🚀 سرویس فعال شد - هر 1 ساعت یکبار', 'success');
+            
+            // اجرای اولیه
+            setTimeout(tester, 2000);
         }
 
         function stopService() {
@@ -260,14 +336,15 @@
             tester();
         }
 
-        // شروع خودکار سرویس پس از لود صفحه
+        // شروع خودکار
         document.addEventListener('DOMContentLoaded', function() {
+            loadStats(); // بارگذاری آمار از localStorage
             updateStatus('📋 صفحه بارگذاری شد', 'info');
-            // تست اولیه اتصال
-            supabase.from(tableName).select('count')
+            
+            // تست اتصال ساده
+            supabase.from(tableName).select('id').limit(1)
                 .then(() => {
                     updateStatus('✅ اتصال به Supabase موفقیت‌آمیز', 'success');
-                    startService();
                 })
                 .catch(error => {
                     updateStatus(`❌ خطای اتصال: ${error.message}`, 'error');
